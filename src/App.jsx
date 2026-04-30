@@ -291,6 +291,7 @@ const PEBC_DEFAULT_SUBJECTS = RAW_SUBJECTS.map(s => ({
   dateDerniereRevision: null,
   dateProchaineRevision: null,
   historiqueRevisions: [],
+  priorite_onboarding: null,
 }));
 
 const PEBC_CATEGORIES = [
@@ -559,7 +560,20 @@ const DS = {
       quotidien: { nbSujets: 10, dureeMinutes: 60, points: 100 },
       hebdomadaire: { nbSujets: 50, dureeMinutes: 300, sessionsMin: 5 }
     },
-    checkpointsLog: {} // { "s4": { date, reponses: {q1: true, ...}, trajectoire: "green", notes } }
+    checkpointsLog: {}, // { "s4": { date, reponses: {q1: true, ...}, trajectoire: "green", notes } }
+    // Onboarding "Solide / Bon / Faible / Inconnu" — calibre priorite_onboarding sur les sujets.
+    onboarding: {
+      statut: "non_commence",          // "non_commence" | "en_cours" | "termine"
+      etape: "categories",              // "categories" | "affinage" | "termine"
+      indexCategorieActuelle: 0,        // 0 à 35 (36 catégories PEBC)
+      niveauxCategorie: {},              // { "Cardiovascular Disorders": "solide", ... }
+      categoriesAFiner: [],              // catégories marquées "bon" ou "faible" à affiner
+      indexCategorieAffinage: 0,
+      indexSujetAffinage: 0,
+      dateDebut: null,
+      dateFin: null,
+      welcomeDismissed: false            // true après clic "Plus tard" sur la modale d'accueil
+    }
   },
   motivation: { streakActuel: 0, streakMax: 0, pointsTotal: 0, historiqueJournalier: [], sessionsLog: [] },
   toasts: [],
@@ -577,11 +591,22 @@ function R(state, action) {
   switch (T) {
     case "LOAD_DATA": {
       const { sujets: s, settings: se, motivation: m } = P;
+      // Migration : ajoute priorite_onboarding aux sujets existants qui ne l'ont pas encore.
+      // Le ?? préserve les valeurs déjà saisies si l'utilisateur a déjà commencé un onboarding.
+      const sujetsCharges = s && s.length > 0
+        ? s.map(sj => ({ ...sj, priorite_onboarding: sj.priorite_onboarding ?? null }))
+        : PEBC_DEFAULT_SUBJECTS;
       return {
         ...state,
         loaded: true,
-        sujets: s && s.length > 0 ? s : PEBC_DEFAULT_SUBJECTS,
-        settings: { ...DS.settings, ...se, checkpointsLog: se?.checkpointsLog || {} },
+        sujets: sujetsCharges,
+        settings: {
+          ...DS.settings,
+          ...se,
+          checkpointsLog: se?.checkpointsLog || {},
+          // Migration : merge avec le shape par défaut pour garantir tous les champs même sur saves anciens.
+          onboarding: { ...DS.settings.onboarding, ...(se?.onboarding || {}) }
+        },
         motivation: { ...DS.motivation, ...m }
       };
     }
