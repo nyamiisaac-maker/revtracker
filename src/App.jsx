@@ -1007,6 +1007,43 @@ function CM({ open: o, onClose: oc, onConfirm: of2, title: t, message: m, confir
 
 
 // ============================================================================
+// ONBOARDING — composants
+// ============================================================================
+// Modale de bienvenue affichée au tout premier démarrage (statut "non_commence",
+// welcomeDismissed false, aucune révision encore enregistrée). Le montage
+// effectif et la condition d'affichage sont gérés dans App() au commit 7.
+function OnboardingWelcomeModal({ open, dispatch }) {
+  if (!open) return null;
+  const dismiss = () => dispatch({ type: "ONBOARDING_DISMISS_WELCOME" });
+  const start = () => dispatch({ type: "ONBOARDING_START" });
+  return (
+    <Md open={open} onClose={dismiss} title="Bienvenue dans RevTracker">
+      <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
+        <p>Avant de commencer, prenons 10-15 minutes pour calibrer ta préparation.</p>
+        <p>
+          Tu vas évaluer ton niveau <strong>catégorie par catégorie</strong> sur les 36 catégories
+          du blueprint PEBC, puis affiner certaines zones sujet par sujet.
+        </p>
+        <p className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200">
+          <strong>Important :</strong> ta confiance reste à 1/5 partout — l'onboarding sert
+          uniquement à <strong>prioriser</strong> les sujets dans tes futures révisions.
+          Tu confirmeras ton vrai niveau au fil des révisions.
+        </p>
+      </div>
+      <div className="flex justify-end gap-3 mt-6">
+        <button onClick={dismiss} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+          Plus tard
+        </button>
+        <button onClick={start} className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg font-medium">
+          Commencer
+        </button>
+      </div>
+    </Md>
+  );
+}
+
+
+// ============================================================================
 // DASHBOARD HELPERS
 // ============================================================================
 function DWB({ sujets: sj }) {
