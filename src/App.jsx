@@ -1042,6 +1042,67 @@ function OnboardingWelcomeModal({ open, dispatch }) {
   );
 }
 
+// Étape 1 de l'onboarding : auto-évaluation par catégorie (1/36 → 36/36).
+// Standalone — sera orchestrée par OnboardingModal au commit 6.
+function OnboardingCategoryStep({ state, dispatch, onPause }) {
+  const ob = state.settings.onboarding;
+  const categories = state.settings.categoriesDisponibles;
+  const idx = ob.indexCategorieActuelle;
+  const total = categories.length;
+  const categorie = categories[idx];
+  if (!categorie) return null;
+  const sujetsCount = state.sujets.filter(s => s.categorie === categorie).length;
+  const domaine = gd(categorie);
+  const niveauActuel = ob.niveauxCategorie[categorie];
+  const choisir = (niveau) => dispatch({ type: "ONBOARDING_SET_CATEGORY_LEVEL", payload: { categorie, niveau } });
+  const retour = () => dispatch({ type: "ONBOARDING_GO_BACK_CATEGORY" });
+  const niveaux = [
+    { key: "solide",  label: "Solide",  bg: "bg-emerald-600 hover:bg-emerald-700", ring: "ring-emerald-600", desc: "Je connais bien, je pourrais traiter une question d'examen sans révision lourde." },
+    { key: "bon",     label: "Bon",     bg: "bg-blue-600 hover:bg-blue-700",       ring: "ring-blue-600",    desc: "J'ai des bases solides, mais quelques zones à rafraîchir." },
+    { key: "faible",  label: "Faible",  bg: "bg-orange-600 hover:bg-orange-700",   ring: "ring-orange-600",  desc: "J'ai des notions, mais beaucoup à revoir." },
+    { key: "inconnu", label: "Inconnu", bg: "bg-red-600 hover:bg-red-700",         ring: "ring-red-600",     desc: "Je ne maîtrise pas, ou jamais étudié sérieusement." }
+  ];
+  return (
+    <Md open={true} onClose={onPause} title={`Onboarding — Catégorie ${idx + 1}/${total}`} wide>
+      <div className="space-y-5">
+        <PB value={idx + 1} max={total} color="bg-blue-500" />
+        <div>
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">{categorie}</h3>
+          <p className="text-sm text-gray-500 mt-1">{sujetsCount} sujet{sujetsCount > 1 ? "s" : ""} dans cette catégorie</p>
+          <p className="text-xs text-gray-500 mt-1">
+            Domaine : <span style={{ color: domaine.color }} className="font-medium">{domaine.label}</span> ({domaine.weight}%)
+          </p>
+        </div>
+        <p className="font-medium text-gray-700 dark:text-gray-300">Quel est ton niveau global sur cette zone ?</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {niveaux.map(n => (
+            <button
+              key={n.key}
+              onClick={() => choisir(n.key)}
+              className={`text-left p-3 rounded-lg text-white font-medium transition ${n.bg} ${niveauActuel === n.key ? `ring-2 ring-offset-2 dark:ring-offset-[#1A1D27] ${n.ring}` : ""}`}
+            >
+              <div className="font-semibold">{n.label}</div>
+              <div className="text-xs font-normal mt-1 opacity-90">{n.desc}</div>
+            </button>
+          ))}
+        </div>
+        <div className="flex justify-between pt-2 border-t border-gray-100 dark:border-[#2A2D37]">
+          <button
+            onClick={retour}
+            disabled={idx === 0}
+            className={`px-3 py-2 text-sm rounded-lg flex items-center gap-1 ${idx === 0 ? "text-gray-300 dark:text-gray-600 cursor-not-allowed opacity-50" : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"}`}
+          >
+            ← Retour
+          </button>
+          <button onClick={onPause} className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+            Pause
+          </button>
+        </div>
+      </div>
+    </Md>
+  );
+}
+
 
 // ============================================================================
 // DASHBOARD HELPERS
