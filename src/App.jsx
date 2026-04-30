@@ -572,7 +572,8 @@ const DS = {
       indexSujetAffinage: 0,
       dateDebut: null,
       dateFin: null,
-      welcomeDismissed: false            // true après clic "Plus tard" sur la modale d'accueil
+      welcomeDismissed: false,           // true après clic "Plus tard" sur la modale d'accueil
+      completionAcknowledged: false      // true après clic "Aller au tableau de bord" sur la modale de fin
     }
   },
   motivation: { streakActuel: 0, streakMax: 0, pointsTotal: 0, historiqueJournalier: [], sessionsLog: [] },
@@ -860,6 +861,15 @@ function R(state, action) {
             etape: "termine",
             dateFin: new Date().toISOString()
           }
+        }
+      };
+    }
+    case "ONBOARDING_ACK_COMPLETION": {
+      return {
+        ...state,
+        settings: {
+          ...state.settings,
+          onboarding: { ...state.settings.onboarding, completionAcknowledged: true }
         }
       };
     }
@@ -1222,6 +1232,68 @@ function OnboardingRefineStep({ state, dispatch, onPause }) {
       </div>
     </Md>
   );
+}
+
+// Modale de félicitations affichée à la fin de l'onboarding.
+// Le bouton "Aller au tableau de bord" dispatch ONBOARDING_ACK_COMPLETION,
+// qui marque la modale comme acquittée pour ne plus jamais la réafficher.
+function OnboardingCompleteStep({ state, dispatch }) {
+  const ob = state.settings.onboarding;
+  const ack = () => dispatch({ type: "ONBOARDING_ACK_COMPLETION" });
+  // Durée approximative de l'onboarding (minutes), si dateDebut et dateFin existent.
+  const dureeMin = (ob.dateDebut && ob.dateFin)
+    ? Math.max(1, Math.round((new Date(ob.dateFin) - new Date(ob.dateDebut)) / 60000))
+    : null;
+  const nbSujets = state.sujets.length;
+  return (
+    <Md open={true} onClose={ack} title="Onboarding terminé ✓">
+      <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
+        <p>
+          Tu as évalué tes <strong>{nbSujets}</strong> sujets
+          {dureeMin !== null ? <> en <strong>{dureeMin} min</strong></> : null}.
+          Tes priorités sont calibrées.
+        </p>
+        <p className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200">
+          <strong>Rappel :</strong> ta confiance reste à 1/5 partout. Au fil de tes vraies révisions,
+          l'app affinera tes scores.
+        </p>
+      </div>
+      <div className="flex justify-end mt-6">
+        <button onClick={ack} className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg font-medium">
+          Aller au tableau de bord
+        </button>
+      </div>
+    </Md>
+  );
+}
+
+// Orchestrateur stateless de l'onboarding : sélectionne le sous-composant à afficher
+// en fonction de settings.onboarding (statut + étape + indices).
+// La gestion de l'état "paused" (pour fermer/rouvrir la modale) est faite dans App()
+// au commit 7 — ici on ne décide que "quel écran montrer si on doit en montrer un".
+function OnboardingModal({ state, dispatch, onPause }) {
+  const ob = state.settings.onboarding;
+  const total = state.settings.categoriesDisponibles.length;
+
+  // Étape 1 : auto-évaluation par catégorie.
+  if (ob.statut === "en_cours" && ob.etape === "categories") {
+    if (ob.indexCategorieActuelle >= total) {
+      return <OnboardingTransitionModal state={state} dispatch={dispatch} />;
+    }
+    return <OnboardingCategoryStep state={state} dispatch={dispatch} onPause={onPause} />;
+  }
+
+  // Étape 2 : affinage sujet-par-sujet.
+  if (ob.statut === "en_cours" && ob.etape === "affinage") {
+    return <OnboardingRefineStep state={state} dispatch={dispatch} onPause={onPause} />;
+  }
+
+  // Modale de fin (une seule fois, jusqu'à RESET_ONBOARDING).
+  if (ob.statut === "termine" && !ob.completionAcknowledged) {
+    return <OnboardingCompleteStep state={state} dispatch={dispatch} />;
+  }
+
+  return null;
 }
 
 
