@@ -825,6 +825,29 @@ function R(state, action) {
         }
       };
     }
+    case "ONBOARDING_PREV_REFINING": {
+      // Symétrique au ONBOARDING_GO_BACK_CATEGORY de l'étape 1.
+      // No-op si on est au tout premier sujet de la première catégorie à affiner.
+      const ob = state.settings.onboarding;
+      let { indexCategorieAffinage, indexSujetAffinage } = ob;
+      if (indexSujetAffinage > 0) {
+        indexSujetAffinage--;
+      } else if (indexCategorieAffinage > 0) {
+        indexCategorieAffinage--;
+        const catPrev = ob.categoriesAFiner[indexCategorieAffinage];
+        const sujetsPrev = state.sujets.filter(s => s.categorie === catPrev);
+        indexSujetAffinage = Math.max(0, sujetsPrev.length - 1);
+      } else {
+        return state;
+      }
+      return {
+        ...state,
+        settings: {
+          ...state.settings,
+          onboarding: { ...ob, indexCategorieAffinage, indexSujetAffinage }
+        }
+      };
+    }
     case "ONBOARDING_PAUSE": return state;
     case "ONBOARDING_COMPLETE": {
       return {
@@ -1095,6 +1118,104 @@ function OnboardingCategoryStep({ state, dispatch, onPause }) {
             ← Retour
           </button>
           <button onClick={onPause} className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+            Pause
+          </button>
+        </div>
+      </div>
+    </Md>
+  );
+}
+
+// Modale de transition entre l'étape 1 (catégories) et l'étape 2 (affinage).
+// X / backdrop = "Terminer" (skip affinage) — décision produit validée.
+function OnboardingTransitionModal({ state, dispatch }) {
+  const ob = state.settings.onboarding;
+  const nbAFiner = ob.categoriesAFiner.length;
+  const affiner = () => dispatch({ type: "ONBOARDING_START_REFINING" });
+  const terminer = () => dispatch({ type: "ONBOARDING_COMPLETE" });
+  return (
+    <Md open={true} onClose={terminer} title="Catégories de base évaluées ✓">
+      <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
+        <p>
+          Tu as marqué <strong>{nbAFiner}</strong> catégorie{nbAFiner > 1 ? "s" : ""} en "Bon" ou "Faible".
+        </p>
+        <p>Veux-tu les affiner sujet par sujet ? Cela rendra ton planning plus précis.</p>
+      </div>
+      <div className="flex justify-end gap-3 mt-6">
+        <button onClick={terminer} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+          Terminer
+        </button>
+        <button onClick={affiner} className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg font-medium">
+          Affiner maintenant
+        </button>
+      </div>
+    </Md>
+  );
+}
+
+// Étape 2 de l'onboarding : affinage sujet-par-sujet des catégories partielles.
+// X / backdrop = Pause (par symétrie avec le bouton Pause).
+function OnboardingRefineStep({ state, dispatch, onPause }) {
+  const ob = state.settings.onboarding;
+  const cat = ob.categoriesAFiner[ob.indexCategorieAffinage];
+  if (!cat) return null;
+  const sujetsCat = state.sujets.filter(s => s.categorie === cat);
+  const sujet = sujetsCat[ob.indexSujetAffinage];
+  if (!sujet) return null;
+  const nbCat = ob.categoriesAFiner.length;
+  const choisir = (niveau) => {
+    dispatch({ type: "ONBOARDING_SET_SUBJECT_LEVEL", payload: { sujetId: sujet.id, niveau } });
+    dispatch({ type: "ONBOARDING_NEXT_REFINING" });
+  };
+  const garder = () => dispatch({ type: "ONBOARDING_NEXT_REFINING" });
+  const retour = () => dispatch({ type: "ONBOARDING_PREV_REFINING" });
+  const retourDisabled = ob.indexSujetAffinage === 0 && ob.indexCategorieAffinage === 0;
+  const niveauActuel = sujet.priorite_onboarding;
+  const niveaux = [
+    { key: "solide",  label: "Solide",  bg: "bg-emerald-600 hover:bg-emerald-700", ring: "ring-emerald-600", desc: "Je connais bien, je pourrais traiter une question d'examen sans révision lourde." },
+    { key: "bon",     label: "Bon",     bg: "bg-blue-600 hover:bg-blue-700",       ring: "ring-blue-600",    desc: "J'ai des bases solides, mais quelques zones à rafraîchir." },
+    { key: "faible",  label: "Faible",  bg: "bg-orange-600 hover:bg-orange-700",   ring: "ring-orange-600",  desc: "J'ai des notions, mais beaucoup à revoir." },
+    { key: "inconnu", label: "Inconnu", bg: "bg-red-600 hover:bg-red-700",         ring: "ring-red-600",     desc: "Je ne maîtrise pas, ou jamais étudié sérieusement." }
+  ];
+  return (
+    <Md open={true} onClose={onPause} title={`Affinage — ${cat} (${ob.indexCategorieAffinage + 1}/${nbCat})`} wide>
+      <div className="space-y-5">
+        <PB value={ob.indexSujetAffinage + 1} max={sujetsCat.length} color="bg-blue-500" />
+        <p className="text-xs text-gray-500">Sujet {ob.indexSujetAffinage + 1}/{sujetsCat.length}</p>
+        <div>
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">{sujet.nom}</h3>
+          {sujet.notes && (
+            <div className="mt-3 p-3 rounded-lg bg-gray-50 dark:bg-[#252830] text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-xs font-medium text-gray-500 mb-1">Notes du sujet :</p>
+              <p className="whitespace-pre-line">{sujet.notes}</p>
+            </div>
+          )}
+        </div>
+        <p className="font-medium text-gray-700 dark:text-gray-300">Ton niveau ?</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {niveaux.map(n => (
+            <button
+              key={n.key}
+              onClick={() => choisir(n.key)}
+              className={`text-left p-3 rounded-lg text-white font-medium transition ${n.bg} ${niveauActuel === n.key ? `ring-2 ring-offset-2 dark:ring-offset-[#1A1D27] ${n.ring}` : ""}`}
+            >
+              <div className="font-semibold">{n.label}</div>
+              <div className="text-xs font-normal mt-1 opacity-90">{n.desc}</div>
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100 dark:border-[#2A2D37]">
+          <button
+            onClick={retour}
+            disabled={retourDisabled}
+            className={`px-3 py-2 text-sm rounded-lg ${retourDisabled ? "text-gray-300 dark:text-gray-600 cursor-not-allowed opacity-50" : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"}`}
+          >
+            ← Retour
+          </button>
+          <button onClick={garder} className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+            Garder niveau catégorie
+          </button>
+          <button onClick={onPause} className="ml-auto px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
             Pause
           </button>
         </div>
