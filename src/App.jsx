@@ -441,6 +441,11 @@ const isSurapprentissage = (s) => {
 };
 
 const calcExamReadiness = (sujets) => {
+  // Garde-fou : si aucune révision n'a été enregistrée, le score est 0.
+  // Évite le score artificiel ~18% lié à la confiance initiale (1/5) et à
+  // la rétention par défaut (0.5) quand l'utilisateur n'a encore rien fait.
+  const hasAnyRevision = sujets.some(s => s.dateDerniereRevision || (s.historiqueRevisions && s.historiqueRevisions.length > 0));
+  if (!hasAnyRevision) return 0;
   let total = 0, wTotal = 0;
   Object.entries(DOMAIN_MAP).forEach(([k, d]) => {
     const ds = sujets.filter(s => d.categories.includes(s.categorie));
