@@ -711,6 +711,145 @@ function R(state, action) {
     }
     case "SET_EVAL": return { ...state, sessionEval: P };
     case "CLEAR_EVAL": return { ...state, sessionEval: null };
+    case "ONBOARDING_START": {
+      return {
+        ...state,
+        settings: {
+          ...state.settings,
+          onboarding: {
+            ...state.settings.onboarding,
+            statut: "en_cours",
+            etape: "categories",
+            indexCategorieActuelle: 0,
+            niveauxCategorie: {},
+            categoriesAFiner: [],
+            indexCategorieAffinage: 0,
+            indexSujetAffinage: 0,
+            dateDebut: new Date().toISOString(),
+            dateFin: null
+          }
+        }
+      };
+    }
+    case "ONBOARDING_DISMISS_WELCOME": {
+      return {
+        ...state,
+        settings: {
+          ...state.settings,
+          onboarding: { ...state.settings.onboarding, welcomeDismissed: true }
+        }
+      };
+    }
+    case "ONBOARDING_SET_CATEGORY_LEVEL": {
+      const { categorie, niveau } = P;
+      const sujetsMaJ = state.sujets.map(s =>
+        s.categorie === categorie ? { ...s, priorite_onboarding: niveau } : s
+      );
+      const niveauxMaJ = { ...state.settings.onboarding.niveauxCategorie, [categorie]: niveau };
+      const aFiner = state.settings.onboarding.categoriesAFiner.filter(c => c !== categorie);
+      if (niveau === "bon" || niveau === "faible") aFiner.push(categorie);
+      return {
+        ...state,
+        sujets: sujetsMaJ,
+        settings: {
+          ...state.settings,
+          onboarding: {
+            ...state.settings.onboarding,
+            niveauxCategorie: niveauxMaJ,
+            categoriesAFiner: aFiner,
+            indexCategorieActuelle: state.settings.onboarding.indexCategorieActuelle + 1
+          }
+        }
+      };
+    }
+    case "ONBOARDING_GO_BACK_CATEGORY": {
+      const idx = Math.max(0, state.settings.onboarding.indexCategorieActuelle - 1);
+      return {
+        ...state,
+        settings: {
+          ...state.settings,
+          onboarding: { ...state.settings.onboarding, indexCategorieActuelle: idx }
+        }
+      };
+    }
+    case "ONBOARDING_START_REFINING": {
+      const ob = state.settings.onboarding;
+      const aFinerExist = ob.categoriesAFiner.length > 0;
+      return {
+        ...state,
+        settings: {
+          ...state.settings,
+          onboarding: {
+            ...ob,
+            etape: aFinerExist ? "affinage" : "termine",
+            statut: aFinerExist ? "en_cours" : "termine",
+            indexCategorieAffinage: 0,
+            indexSujetAffinage: 0,
+            dateFin: aFinerExist ? null : new Date().toISOString()
+          }
+        }
+      };
+    }
+    case "ONBOARDING_SET_SUBJECT_LEVEL": {
+      const { sujetId, niveau } = P;
+      return {
+        ...state,
+        sujets: state.sujets.map(s =>
+          s.id === sujetId ? { ...s, priorite_onboarding: niveau } : s
+        )
+      };
+    }
+    case "ONBOARDING_NEXT_REFINING": {
+      const ob = state.settings.onboarding;
+      const cat = ob.categoriesAFiner[ob.indexCategorieAffinage];
+      const sujetsCat = state.sujets.filter(s => s.categorie === cat);
+      let { indexCategorieAffinage, indexSujetAffinage } = ob;
+      indexSujetAffinage++;
+      if (indexSujetAffinage >= sujetsCat.length) {
+        indexSujetAffinage = 0;
+        indexCategorieAffinage++;
+      }
+      const fini = indexCategorieAffinage >= ob.categoriesAFiner.length;
+      return {
+        ...state,
+        settings: {
+          ...state.settings,
+          onboarding: {
+            ...ob,
+            indexCategorieAffinage,
+            indexSujetAffinage,
+            etape: fini ? "termine" : "affinage",
+            statut: fini ? "termine" : "en_cours",
+            dateFin: fini ? new Date().toISOString() : null
+          }
+        }
+      };
+    }
+    case "ONBOARDING_PAUSE": return state;
+    case "ONBOARDING_COMPLETE": {
+      return {
+        ...state,
+        settings: {
+          ...state.settings,
+          onboarding: {
+            ...state.settings.onboarding,
+            statut: "termine",
+            etape: "termine",
+            dateFin: new Date().toISOString()
+          }
+        }
+      };
+    }
+    case "RESET_ONBOARDING": {
+      return {
+        ...state,
+        sujets: state.sujets.map(s => ({ ...s, priorite_onboarding: null })),
+        settings: {
+          ...state.settings,
+          onboarding: { ...DS.settings.onboarding }
+        }
+      };
+    }
     default: return state;
   }
 }
