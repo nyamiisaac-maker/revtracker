@@ -1296,6 +1296,51 @@ function OnboardingModal({ state, dispatch, onPause }) {
   return null;
 }
 
+// Bannière de reprise affichée sur le dashboard tant que l'onboarding n'est pas terminé.
+// Trois cas, dans cet ordre :
+//   - statut "non_commence" + welcomeDismissed → bouton "Démarrer" (l'utilisateur a cliqué Plus tard)
+//   - statut "en_cours" → bouton "Reprendre" avec progression (catégorie X/36 ou affinage X/Y)
+//   - sinon (statut "termine" ou modale de bienvenue active) → null
+function OnboardingResumeBanner({ state, dispatch, onResume }) {
+  const ob = state.settings.onboarding;
+  const total = state.settings.categoriesDisponibles.length;
+
+  if (ob.statut === "non_commence" && ob.welcomeDismissed) {
+    const demarrer = () => {
+      dispatch({ type: "ONBOARDING_START" });
+      onResume();
+    };
+    return (
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4 flex items-center gap-3">
+        <span className="text-sm text-blue-800 dark:text-blue-200 flex-1">
+          Onboarding non commencé — calibre tes priorités en 10-15 min.
+        </span>
+        <button onClick={demarrer} className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium">
+          Démarrer
+        </button>
+      </div>
+    );
+  }
+
+  if (ob.statut === "en_cours") {
+    const progressLabel = ob.etape === "categories"
+      ? `Catégorie ${Math.min(ob.indexCategorieActuelle + 1, total)}/${total}`
+      : `Affinage ${ob.indexCategorieAffinage + 1}/${ob.categoriesAFiner.length}`;
+    return (
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4 flex items-center gap-3">
+        <span className="text-sm text-amber-800 dark:text-amber-200 flex-1">
+          Onboarding en cours — {progressLabel}.
+        </span>
+        <button onClick={onResume} className="px-3 py-1.5 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium">
+          Reprendre
+        </button>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 
 // ============================================================================
 // DASHBOARD HELPERS
@@ -2884,6 +2929,32 @@ function SetV({ state: st, dispatch: dp }) {
 export default function App() {
   const [state, dispatch] = useReducer(R, DS);
   const [mobileMenu, sMM] = useState(false);
+  const [onboardingActive, setOnboardingActive] = useState(false);
+
+  // Détecte la transition "non_commence" → "en_cours" pour ouvrir
+  // automatiquement la modale d'onboarding (clic Commencer ou Démarrer).
+  // initRef évite de confondre l'hydratation initiale depuis localStorage
+  // (qui peut elle-même faire transiter le statut de DS "non_commence" vers
+  // une valeur sauvegardée) avec une vraie action utilisateur.
+  // Si le state initial est modifié plus tard (autre statut de départ
+  // que "non_commence"), vérifier ce code.
+  const prevStatutRef = useRef(null);
+  const initRef = useRef(false);
+  useEffect(() => {
+    if (!state.loaded) return;
+    const cur = state.settings.onboarding.statut;
+    if (!initRef.current) {
+      // Premier passage après hydratation : on enregistre l'état
+      // courant sans déclencher d'action.
+      prevStatutRef.current = cur;
+      initRef.current = true;
+      return;
+    }
+    if (prevStatutRef.current === "non_commence" && cur === "en_cours") {
+      setOnboardingActive(true);
+    }
+    prevStatutRef.current = cur;
+  }, [state.settings.onboarding.statut, state.loaded]);
 
   // Chargement initial
   useEffect(() => {
@@ -3006,6 +3077,13 @@ export default function App() {
         <div className="mb-4 hidden lg:block">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{currentNav.label}</h1>
         </div>
+        {state.view === "dashboard" && (
+          <OnboardingResumeBanner
+            state={state}
+            dispatch={dispatch}
+            onResume={() => setOnboardingActive(true)}
+          />
+        )}
         {renderView()}
       </main>
 
@@ -3019,6 +3097,25 @@ export default function App() {
           onClose={() => dispatch({ type: "CLEAR_EVAL" })}
           sessionData={state.sessionEval}
           dispatch={dispatch}
+        />
+      )}
+
+      {/* Onboarding (niveau app) */}
+      <OnboardingWelcomeModal
+        open={
+          state.settings.onboarding.statut === "non_commence"
+          && !state.settings.onboarding.welcomeDismissed
+          && state.motivation.historiqueJournalier.length === 0
+          && state.sujets.every(s => !s.dateDerniereRevision)
+        }
+        dispatch={dispatch}
+      />
+      {((onboardingActive && state.settings.onboarding.statut === "en_cours")
+        || (state.settings.onboarding.statut === "termine" && !state.settings.onboarding.completionAcknowledged)) && (
+        <OnboardingModal
+          state={state}
+          dispatch={dispatch}
+          onPause={() => setOnboardingActive(false)}
         />
       )}
     </div>
