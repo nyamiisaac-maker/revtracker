@@ -402,6 +402,11 @@ const gsr = (sujets, n = 8) => {
     else if (s.priorite === "important") score += 10;
     score += (5 - s.confiance) * 5;
     if (!s.dateDerniereRevision) score += 15;
+    if (s.priorite_onboarding === "inconnu") score += 25;
+    else if (s.priorite_onboarding === "faible") score += 18;
+    else if (s.priorite_onboarding === "bon") score += 8;
+    else if (s.priorite_onboarding === "solide") score -= 10;
+    // si null ou undefined : pas de modification
     return { ...s, _s: score };
   });
   return _.orderBy(sc, "_s", "desc").slice(0, n);
