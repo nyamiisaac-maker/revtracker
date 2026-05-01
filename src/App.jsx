@@ -1771,7 +1771,13 @@ function SFM({ open: o, onClose: oc, subject: su, state: st, dispatch: dp }) {
 function SV({ state: st, dispatch: dp }) {
   const [se, sSe] = useState("");
   const [sf, sSf] = useState(false);
-  const [fl, sFl] = useState({ cat: [], sta: [], pri: [], ov: false, week: null });
+  const [fl, sFl] = useState({ cat: [], sta: [], pri: [], ov: false, week: null, pob: "" });
+  const POB_BADGE = {
+    solide:  { label: "Solide",  bg: "bg-emerald-600", letter: "S" },
+    bon:     { label: "Bon",     bg: "bg-blue-600",    letter: "B" },
+    faible:  { label: "Faible",  bg: "bg-orange-600",  letter: "F" },
+    inconnu: { label: "Inconnu", bg: "bg-red-600",     letter: "I" }
+  };
   const [fo, sFo] = useState(false);
   const [es, sEs] = useState(null);
   const [rs, sRs] = useState(null);
@@ -1791,6 +1797,10 @@ function SV({ state: st, dispatch: dp }) {
     if (fl.pri.length) l = l.filter(s => fl.pri.includes(s.priorite));
     if (fl.ov) l = l.filter(isOv);
     if (fl.week !== null) l = l.filter(s => s.semainePlan === fl.week);
+    if (fl.pob) {
+      if (fl.pob === "null") l = l.filter(s => s.priorite_onboarding == null);
+      else l = l.filter(s => s.priorite_onboarding === fl.pob);
+    }
     return _.orderBy(l, [sk], [sd]);
   }, [st.sujets, se, fl, sk, sd]);
 
@@ -1819,7 +1829,7 @@ function SV({ state: st, dispatch: dp }) {
         <button onClick={() => { sEs(null); sFo(true); }} className="ml-auto flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg font-medium"><Plus size={16} />Ajouter</button>
       </div>
       {sf && (
-        <div className="bg-white dark:bg-[#1A1D27] rounded-xl p-4 border border-gray-100 dark:border-[#2A2D37] grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+        <div className="bg-white dark:bg-[#1A1D27] rounded-xl p-4 border border-gray-100 dark:border-[#2A2D37] grid grid-cols-2 lg:grid-cols-5 gap-4 text-sm">
           <div>
             <label className="text-xs font-medium text-gray-500 mb-1 block">Catégorie</label>
             <select className="w-full px-2 py-1.5 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-[#252830] text-xs" value="" onChange={e => { if (e.target.value && !fl.cat.includes(e.target.value)) sFl(f => ({ ...f, cat: [...f.cat, e.target.value] })); }}>
@@ -1857,6 +1867,17 @@ function SV({ state: st, dispatch: dp }) {
               {Array.from({ length: 26 }, (_, i) => i + 1).map(w => <option key={w} value={w}>S{w}</option>)}
             </select>
           </div>
+          <div>
+            <label className="text-xs font-medium text-gray-500 mb-1 block">Priorité onboarding</label>
+            <select className="w-full px-2 py-1.5 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-[#252830] text-xs" value={fl.pob} onChange={e => sFl(f => ({ ...f, pob: e.target.value }))}>
+              <option value="">Toutes les priorités onboarding</option>
+              <option value="solide">Solide</option>
+              <option value="bon">Bon</option>
+              <option value="faible">Faible</option>
+              <option value="inconnu">Inconnu</option>
+              <option value="null">Non évalué</option>
+            </select>
+          </div>
         </div>
       )}
       {vm === "kanban" && (
@@ -1875,7 +1896,14 @@ function SV({ state: st, dispatch: dp }) {
                     <div key={x.id} className="p-3 rounded-lg bg-gray-50 dark:bg-[#252830] border border-gray-100 dark:border-[#2A2D37]">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{x.nom}</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate flex items-center gap-1.5">
+                            {POB_BADGE[x.priorite_onboarding] && (
+                              <span title={POB_BADGE[x.priorite_onboarding].label} className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold text-white shrink-0 ${POB_BADGE[x.priorite_onboarding].bg}`}>
+                                {POB_BADGE[x.priorite_onboarding].letter}
+                              </span>
+                            )}
+                            <span className="truncate">{x.nom}</span>
+                          </p>
                           <p className="text-[10px] text-gray-400 mt-0.5">{x.categorie}{x.semainePlan > 0 && ` • S${x.semainePlan}`}</p>
                         </div>
                         <PI priorite={x.priorite} />
@@ -1916,7 +1944,16 @@ function SV({ state: st, dispatch: dp }) {
                   {fd2.map(s => (
                     <tr key={s.id} className="border-b border-gray-50 dark:border-[#252830] hover:bg-gray-50 dark:hover:bg-[#252830]">
                       <td className="px-4 py-3"><PI priorite={s.priorite} /></td>
-                      <td className="px-4 py-3 text-gray-900 dark:text-gray-100 font-medium max-w-xs truncate">{s.nom}</td>
+                      <td className="px-4 py-3 text-gray-900 dark:text-gray-100 font-medium max-w-xs">
+                        <div className="flex items-center gap-1.5">
+                          {POB_BADGE[s.priorite_onboarding] && (
+                            <span title={POB_BADGE[s.priorite_onboarding].label} className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold text-white shrink-0 ${POB_BADGE[s.priorite_onboarding].bg}`}>
+                              {POB_BADGE[s.priorite_onboarding].letter}
+                            </span>
+                          )}
+                          <span className="truncate">{s.nom}</span>
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs max-w-[120px] truncate">{s.categorie}</td>
                       <td className="px-4 py-3 text-xs text-gray-500">{s.semainePlan > 0 ? `S${s.semainePlan}` : "—"}</td>
                       <td className="px-4 py-3"><SB statut={s.statut} /></td>
