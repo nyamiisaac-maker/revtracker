@@ -1576,6 +1576,51 @@ function ObjectiveRings({ state }) {
   );
 }
 
+// KPI Calibration : récap des 5 niveaux d'onboarding (Solide / Bon / Faible /
+// Inconnu / Non évalué) en barres horizontales colorées. N'est rendu QUE si
+// l'onboarding est terminé — la bannière du commit 7 prend en charge les autres
+// états (non_commence, en_cours).
+function CalibrationKPI({ state }) {
+  if (state.settings.onboarding.statut !== "termine") return null;
+  const sujets = state.sujets;
+  const total = sujets.length;
+  const niveaux = [
+    { key: "solide",  label: "Solide",      color: "bg-emerald-600" },
+    { key: "bon",     label: "Bon",         color: "bg-blue-600" },
+    { key: "faible",  label: "Faible",      color: "bg-orange-600" },
+    { key: "inconnu", label: "Inconnu",     color: "bg-red-600" },
+    { key: "null",    label: "Non évalué",  color: "bg-gray-400" }
+  ];
+  const counts = niveaux.map(n => ({
+    ...n,
+    count: n.key === "null"
+      ? sujets.filter(s => s.priorite_onboarding == null).length
+      : sujets.filter(s => s.priorite_onboarding === n.key).length
+  }));
+  return (
+    <div className="bg-white dark:bg-[#1A1D27] rounded-xl p-5 border border-gray-100 dark:border-[#2A2D37]">
+      <h3 className="text-sm font-medium text-gray-500 mb-4 flex items-center gap-2">
+        <Target size={16} className="text-blue-500" />
+        Calibration
+      </h3>
+      <div className="space-y-2">
+        {counts.map(n => {
+          const pct = total > 0 ? Math.round(n.count / total * 100) : 0;
+          return (
+            <div key={n.key} className="flex items-center gap-3 text-xs">
+              <span className="w-20 text-gray-600 dark:text-gray-400 shrink-0">{n.label}</span>
+              <PB value={n.count} max={total} color={n.color} className="flex-1" />
+              <span className="w-24 text-right text-gray-500 tabular-nums shrink-0">
+                {n.count} sujet{n.count > 1 ? "s" : ""} ({pct}%)
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function DV({ state: st, dispatch: dp }) {
   const total = st.sujets.length;
   const maitrise = st.sujets.filter(s => s.statut === "maitrise").length;
@@ -1635,6 +1680,7 @@ function DV({ state: st, dispatch: dp }) {
         <ObjectiveRings state={st} />
         <DWB sujets={st.sujets} />
       </div>
+      <CalibrationKPI state={st} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <DRC sujets={st.sujets} />
         <div className="bg-white dark:bg-[#1A1D27] rounded-xl p-5 border border-gray-100 dark:border-[#2A2D37]">
