@@ -2801,9 +2801,10 @@ function PlanView({ state: st, dispatch: dp }) {
 // ============================================================================
 // PARAMÈTRES (sans PrepCalc, avec note méthodologique PEBC)
 // ============================================================================
-function SetV({ state: st, dispatch: dp }) {
+function SetV({ state: st, dispatch: dp, onOnboardingActivate }) {
   const [showTrash, sShowTrash] = useState(false);
   const [confirmReset, sConfirmReset] = useState(false);
+  const [restartStep, setRestartStep] = useState(0); // 0=fermé, 1/2/3=modale en cascade
   const fileRef = useRef(null);
 
   const exportJSON = () => {
@@ -2967,7 +2968,14 @@ function SetV({ state: st, dispatch: dp }) {
       {/* Zone de danger */}
       <div className="bg-white dark:bg-[#1A1D27] rounded-xl p-5 border border-red-200 dark:border-red-900">
         <h3 className="font-semibold text-red-600 dark:text-red-400 mb-3">Zone de danger</h3>
-        <button onClick={() => sConfirmReset(true)} className="flex items-center gap-1.5 px-3 py-2 text-sm bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg"><RotateCcw size={14} />Réinitialiser toutes les données</button>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => sConfirmReset(true)} className="flex items-center gap-1.5 px-3 py-2 text-sm bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg"><RotateCcw size={14} />Réinitialiser toutes les données</button>
+          <button onClick={() => setRestartStep(1)} className="flex items-center gap-1.5 px-3 py-2 text-sm bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg"><RotateCcw size={14} />Refaire l'onboarding</button>
+        </div>
+        <p className="text-xs text-gray-500 mt-3">
+          « Refaire l'onboarding » ne touche que les priorités d'onboarding. Tes confiances, statuts, révisions et stats sont conservés.
+          Une sauvegarde JSON complète est téléchargée automatiquement avant le reset.
+        </p>
       </div>
 
       {/* Note méthodologique */}
@@ -3004,6 +3012,50 @@ function SetV({ state: st, dispatch: dp }) {
           dp({ type: "RESET" });
           dp({ type: "TOAST", payload: { message: "Données réinitialisées" } });
           sConfirmReset(false);
+        }}
+      />
+      {/* Refaire l'onboarding — triple confirmation + export JSON automatique */}
+      <CM
+        open={restartStep === 1}
+        onClose={() => setRestartStep(0)}
+        title="Refaire l'onboarding ?"
+        message="Cette action réinitialise toutes tes priorités d'onboarding (priorite_onboarding sur les 168 sujets). Tes confiances, statuts, révisions et stats sont conservés."
+        confirmLabel="Continuer"
+        danger={true}
+        onConfirm={() => setRestartStep(2)}
+      />
+      <CM
+        open={restartStep === 2}
+        onClose={() => setRestartStep(0)}
+        title="Confirmer la réinitialisation"
+        message="Confirme une seconde fois. Cette action ne peut pas être annulée par Undo (au-delà de 30s)."
+        confirmLabel="Confirmer et exporter une sauvegarde"
+        danger={true}
+        onConfirm={() => {
+          // Étape 3 (automatique) : export JSON complet avant reset.
+          const data = { sujets: st.sujets, settings: st.settings, motivation: st.motivation, exportedAt: new Date().toISOString() };
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url; a.download = `revtracker-backup-pre-onboarding-${td()}.json`; a.click();
+          URL.revokeObjectURL(url);
+          dp({ type: "TOAST", payload: { message: "Sauvegarde téléchargée ✓" } });
+          setRestartStep(3);
+        }}
+      />
+      <CM
+        open={restartStep === 3}
+        onClose={() => setRestartStep(0)}
+        title="Sauvegarde téléchargée ✓"
+        message={`Ta sauvegarde JSON a été téléchargée localement (revtracker-backup-pre-onboarding-${td()}.json). Cliquer pour réinitialiser et redémarrer l'onboarding.`}
+        confirmLabel="Redémarrer l'onboarding"
+        danger={false}
+        onConfirm={() => {
+          dp({ type: "RESET_ONBOARDING" });
+          dp({ type: "ONBOARDING_START" });
+          dp({ type: "SET_VIEW", payload: "dashboard" });
+          if (onOnboardingActivate) onOnboardingActivate();
+          setRestartStep(0);
         }}
       />
     </div>
@@ -3101,7 +3153,7 @@ export default function App() {
       case "sessions": return <SeV state={state} dispatch={dispatch} />;
       case "stats": return <StV state={state} />;
       case "insights": return <InsV state={state} dispatch={dispatch} />;
-      case "settings": return <SetV state={state} dispatch={dispatch} />;
+      case "settings": return <SetV state={state} dispatch={dispatch} onOnboardingActivate={() => setOnboardingActive(true)} />;
       default: return <DV state={state} dispatch={dispatch} />;
     }
   };
