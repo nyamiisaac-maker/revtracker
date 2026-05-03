@@ -589,7 +589,8 @@ const DS = {
   insightsTab: "readiness",
   sessionEval: null,
   undoStack: [],
-  trash: []
+  trash: [],
+  redirectFilter: null
 };
 
 function R(state, action) {
@@ -617,6 +618,8 @@ function R(state, action) {
       };
     }
     case "SET_VIEW": return { ...state, view: P };
+    case "SET_REDIR_FILTER": return { ...state, redirectFilter: P };
+    case "CLEAR_REDIR_FILTER": return { ...state, redirectFilter: null };
     case "SET_THEME": return { ...state, theme: P };
     case "SET_SVM": return { ...state, svm: P };
     case "ADD_S": return { ...state, sujets: [...state.sujets, P] };
@@ -1832,6 +1835,14 @@ function SV({ state: st, dispatch: dp }) {
   const [sd, sSd] = useState("asc");
   const vm = st.svm;
 
+  useEffect(() => {
+    if (st.redirectFilter?.week !== undefined) {
+      sFl(f => ({ ...f, week: st.redirectFilter.week }));
+      sSf(true);
+      dp({ type: "CLEAR_REDIR_FILTER" });
+    }
+  }, [st.redirectFilter]);
+
   const fd2 = useMemo(() => {
     let l = st.sujets;
     if (se.trim()) {
@@ -2729,8 +2740,19 @@ function PlanView({ state: st, dispatch: dp }) {
                 const cp = CHECKPOINTS_DEF.find(c => c.semaine === w);
                 const cpDone = cp && !!st.settings.checkpointsLog?.[cp.id];
 
+                const goToWeek = () => {
+                  dp({ type: "SET_REDIR_FILTER", payload: { week: w } });
+                  dp({ type: "SET_VIEW", payload: "subjects" });
+                };
                 return (
-                  <div key={w} className={`p-3 ${isCurrent ? "bg-blue-50 dark:bg-blue-900/10" : ""}`}>
+                  <div
+                    key={w}
+                    onClick={goToWeek}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goToWeek(); } }}
+                    className={`p-3 cursor-pointer transition-colors ${isCurrent ? "bg-blue-50 dark:bg-blue-900/10 hover:bg-blue-100 dark:hover:bg-blue-900/20" : "hover:bg-gray-50 dark:hover:bg-[#252830]"}`}
+                  >
                     <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-sm text-gray-900 dark:text-gray-100">S{w}</span>
@@ -2739,7 +2761,7 @@ function PlanView({ state: st, dispatch: dp }) {
                       </div>
                       <div className="flex items-center gap-2">
                         {cp && (
-                          <button onClick={() => sOpenCP(cp)} className={`text-xs px-2 py-1 rounded font-medium flex items-center gap-1 ${cpDone ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"}`}>
+                          <button onClick={e => { e.stopPropagation(); sOpenCP(cp); }} className={`text-xs px-2 py-1 rounded font-medium flex items-center gap-1 ${cpDone ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"}`}>
                             <ClipboardCheck size={12} />
                             {cpDone ? "Checkpoint fait" : "Faire le checkpoint"}
                           </button>
